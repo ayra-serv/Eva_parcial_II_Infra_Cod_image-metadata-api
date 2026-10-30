@@ -1,0 +1,115 @@
+{
+  "info": {
+    "name": "ImageMetadataAPI",
+    "description": "Pruebas de la Image Metadata API (INY1106 - Evaluación Parcial 2). Antes de ejecutar: editar la variable base_url con la Invoke URL del stage prod.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "https://4dv95hy648.execute-api.us-east-1.amazonaws.com/prod" },
+    { "key": "image_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "01 - POST /upload (subir JPG)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+              "const json = pm.response.json();",
+              "pm.test('Respuesta incluye image_id', () => pm.expect(json.image_id).to.match(/^[a-f0-9]{32}$/));",
+              "pm.test('Respuesta incluye url', () => pm.expect(json.url).to.include('.s3.amazonaws.com/'));",
+              "pm.test('Tiempo de respuesta < 3000 ms', () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+              "pm.collectionVariables.set('image_id', json.image_id);",
+              "console.log('image_id guardado:', json.image_id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "image/jpeg" }],
+        "body": { "mode": "file", "file": { "src": "" } },
+        "url": { "raw": "{{base_url}}/upload", "host": ["{{base_url}}"], "path": ["upload"] },
+        "description": "En Body > binary, seleccionar un archivo .jpg desde el equipo."
+      }
+    },
+    {
+      "name": "02 - GET /metadata/{image_id}",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "pm.test('image_id coincide con el subido', () => pm.expect(json.image_id).to.eql(pm.collectionVariables.get('image_id')));",
+              "pm.test('Incluye metadatos', () => { pm.expect(json).to.have.property('size_bytes'); pm.expect(json).to.have.property('uploaded_at'); pm.expect(json).to.have.property('s3_key'); });",
+              "pm.test('Header CORS presente', () => pm.response.to.have.header('Access-Control-Allow-Origin'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{base_url}}/metadata/{{image_id}}", "host": ["{{base_url}}"], "path": ["metadata", "{{image_id}}"] }
+      }
+    },
+    {
+      "name": "03 - GET /metadata (ID inexistente -> 404)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('Status 404 Not Found', () => pm.response.to.have.status(404));"]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{base_url}}/metadata/00000000000000000000000000000000", "host": ["{{base_url}}"], "path": ["metadata", "00000000000000000000000000000000"] }
+      }
+    },
+    {
+      "name": "04 - GET /metadata (ID inválido -> 400)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));"]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{base_url}}/metadata/id-invalido", "host": ["{{base_url}}"], "path": ["metadata", "id-invalido"] }
+      }
+    },
+    {
+      "name": "05 - POST /upload (archivo no JPG -> 415)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('Status 415 Unsupported Media Type', () => pm.response.to.have.status(415));"]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "text/plain" }],
+        "body": { "mode": "raw", "raw": "esto no es una imagen" },
+        "url": { "raw": "{{base_url}}/upload", "host": ["{{base_url}}"], "path": ["upload"] }
+      }
+    }
+  ]
+}
